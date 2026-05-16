@@ -5,6 +5,11 @@ from google import genai
 from dotenv import load_dotenv
 from pathlib import Path
 from sentence_transformers import SentenceTransformer
+from chromadb.config import Settings
+from dotenv import load_dotenv
+
+
+load_dotenv()
 
 # =========================
 # 기본 설정
@@ -14,25 +19,34 @@ BASE_DIR = Path(__file__).resolve().parent
 CHROMA_PATH = str(BASE_DIR / "vector_db")
 COLLECTION_NAME = "admission_docs"
 
-load_dotenv()
+print("API KEY:", os.getenv("GEMINI_API_KEY"))
 
 # =========================
 # Gemini 설정
 # =========================
-client = genai.Client(
-    api_key=os.getenv("GEMINI_API_KEY")
-)
+try:
+    api_key = st.secrets["GEMINI_API_KEY"]
+except Exception:
+    api_key = os.getenv("GEMINI_API_KEY")
 
-# =========================
-# ChromaDB 연결
-# =========================
-chroma_client = chromadb.PersistentClient(
-    path=CHROMA_PATH
-)
+client = genai.Client(api_key=api_key)
 
-collection = chroma_client.get_collection(
-    name=COLLECTION_NAME
-)
+
+@st.cache_resource
+def get_chroma_collection():
+
+    chroma_client = chromadb.PersistentClient(
+        path=CHROMA_PATH,
+        settings=Settings(
+            anonymized_telemetry=False
+        )
+    )
+
+    return chroma_client.get_collection(
+        name=COLLECTION_NAME
+    )
+
+collection = get_chroma_collection()
 
 # =========================
 # BGE-M3 임베딩 모델
