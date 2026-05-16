@@ -1,0 +1,100 @@
+import streamlit as st
+import chromadb
+from google import genai
+import os
+from dotenv import load_dotenv
+from pathlib import Path
+from sentence_transformers import SentenceTransformer
+
+
+BASE_DIR = Path(__file__).resolve().parent
+
+load_dotenv()
+
+
+#cd C:\DATA\Study\ADP\SonyStudy\Ulsan\ye1Project
+#streamlit run app.py
+
+# Gemini API
+client = genai.Client(
+    api_key=os.getenv("GEMINI_API_KEY") #st.secrets["GEMINI_API_KEY"]
+)
+
+# ChromaDB 연결
+CHROMA_PATH = str(BASE_DIR / "vector_db")
+
+chroma_client = chromadb.PersistentClient(
+    path=CHROMA_PATH
+)
+
+collection = chroma_client.get_collection(
+    name="admission_docs"
+)
+
+# BGE-M3 임베딩 모델
+embedding_model = SentenceTransformer("BAAI/bge-m3")
+
+def embed_text(text):
+    return embedding_model.encode(text).tolist()
+    
+st.title("대입 모집요강 AI")
+
+question = st.text_input("질문 입력")
+
+if question:
+
+    with st.spinner("검색중..."):
+
+        question_embedding = embed_text(question)
+
+        results = collection.query(
+            query_embeddings=[question_embedding],
+            n_results=3
+        )
+
+        docs = results["documents"][0]
+        metas = results["metadatas"][0]
+
+        context = ""
+
+        for doc, meta in zip(docs, metas):
+
+            context += f"""
+[파일]
+{meta['file']}
+
+[페이지]
+{meta['page']}
+
+[내용]
+{doc}
+
+"""
+
+        prompt = f"""
+너는 대입 모집요강 분석 AI이다.
+
+다음 문서를 참고해서 질문에 답변해라.
+
+{context}
+
+질문:
+{question}
+
+답변:
+"""
+
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt
+        )
+
+        st.subheader("답변")
+        st.write(response.text)
+
+        st.subheader("참고 문서")
+
+        for meta in metas:
+            st.write(
+                f"{meta['file']} / {meta['page']}페이지"
+            )
