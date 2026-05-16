@@ -1,5 +1,8 @@
 streamlit
-chromadb
+chromadb==0.5.23
 google-genai
+sentence-transformers
 pypdf
 python-dotenv
+torch
+protobuf==3.20.3
